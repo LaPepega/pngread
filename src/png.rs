@@ -44,32 +44,42 @@ pub struct RGBImage(pub Vec<Vec<RGB>>);
 // FIXME: filter-type bytes are being read as part of the image
 impl RGBImage {
     // FIXME: broken
-    pub fn from_grayscale_idat(idat: Chunk, bit_depth: u8, width: u32) -> Self {
-        let inflated = inflate::inflate_bytes_zlib(&idat.data).expect("Inflation failed");
+    pub fn from_grayscale_idat(idat: Vec<Chunk>, bit_depth: u8, width: u32) -> Self {
+        let inflated = concat_idats(idat);
 
         let img: Vec<Vec<RGB>> = inflated
-            .chunks(width as usize)
+            .chunks(width as usize + 1)
             .map(|line| line.iter().map(|pixel| (*pixel, *pixel, *pixel)).collect())
             .collect();
 
         Self(img)
     }
 
-    pub fn from_rgb_idat(idat: Chunk, bit_depth: u8, width: u32) -> Self {
-        for b in idat.data {}
-        todo!()
+    // FIXME: multiple idat chunks
+    pub fn from_rgb_idat(idat: Vec<Chunk>, bit_depth: u8, width: u32) -> Self {
+        let inflated = concat_idats(idat);
+
+        let img: Vec<Vec<RGB>> = inflated
+            .chunks((width as usize) * 3)
+            .map(|line| {
+                line.chunks(3)
+                    .map(|pixel| (pixel[0], pixel[1], pixel[2]))
+                    .collect()
+            })
+            .collect();
+
+        Self(img)
     }
 
     pub fn from_palette_idat(
-        idat: Chunk,
+        idat: Vec<Chunk>,
         bit_depth: u8,
         width: u32,
         palette: Option<Vec<RGB>>,
     ) -> Self {
         let plte = palette.expect("Image has no palette");
 
-        // "PNG compression method 0 (the only compression method presently defined for PNG) specifies deflate/inflate compression"
-        let inflated = inflate::inflate_bytes_zlib(&idat.data).expect("Inflation failed");
+        let inflated = concat_idats(idat);
 
         // Go over each byte in the idat matching it's value to palette
         let img: Vec<Vec<RGB>> = inflated
@@ -77,7 +87,6 @@ impl RGBImage {
             .map(|line| {
                 line.iter()
                     // Skip filter-type
-                    .skip(2)
                     .map(|pixel| plte[*pixel as usize])
                     .collect()
             })
@@ -86,15 +95,26 @@ impl RGBImage {
         Self(img)
     }
 
-    pub fn from_alpha_grayscale_idat(idat: Chunk, bit_depth: u8, width: u32) -> Self {
-        for b in idat.data {}
+    pub fn from_alpha_grayscale_idat(idat: Vec<Chunk>, bit_depth: u8, width: u32) -> Self {
+        let inflated = concat_idats(idat);
         todo!()
     }
 
-    pub fn from_alpha_rgb_idat(idat: Chunk, bit_depth: u8, width: u32) -> Self {
-        for b in idat.data {}
+    pub fn from_alpha_rgb_idat(idat: Vec<Chunk>, bit_depth: u8, width: u32) -> Self {
         todo!()
     }
+}
+
+fn concat_idats(idat: Vec<Chunk>) -> Vec<u8> {
+    let inflated = inflate::inflate_bytes_zlib(
+        &idat
+            .iter()
+            .map(|c| c.data.clone())
+            .flatten()
+            .collect::<Vec<u8>>(),
+    )
+    .expect("Inflation failed");
+    inflated
 }
 
 impl PNG {
@@ -134,18 +154,20 @@ impl PNG {
             None => None,
         };
 
-        let idat = chunks
+        let idats: Vec<Chunk> = chunks
             .iter()
-            .find(|c| c.type_str() == "IDAT")
-            .expect("Image has no IDAT chunk")
-            .clone();
+            .filter(|c| c.type_str() == "IDAT")
+            .cloned()
+            .collect();
 
         let image = match header.color_type {
-            0 => RGBImage::from_grayscale_idat(idat, header.bit_depth, header.width),
-            2 => RGBImage::from_rgb_idat(idat, header.bit_depth, header.width),
-            3 => RGBImage::from_palette_idat(idat, header.bit_depth, header.width, palette.clone()),
-            4 => RGBImage::from_alpha_grayscale_idat(idat, header.bit_depth, header.width),
-            6 => RGBImage::from_alpha_rgb_idat(idat, header.bit_depth, header.width),
+            0 => RGBImage::from_grayscale_idat(idats, header.bit_depth, header.width),
+            2 => RGBImage::from_rgb_idat(idats, header.bit_depth, header.width),
+            3 => {
+                RGBImage::from_palette_idat(idats, header.bit_depth, header.width, palette.clone())
+            }
+            4 => RGBImage::from_alpha_grayscale_idat(idats, header.bit_depth, header.width),
+            6 => RGBImage::from_alpha_rgb_idat(idats, header.bit_depth, header.width),
             _ => panic!("Invalid color type"),
         };
 
