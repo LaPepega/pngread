@@ -6,7 +6,11 @@ use std::fs;
 
 // TODO: Terminal flags
 fn main() {
-    let bytes = fs::read("/home/lapepega/Downloads/rgb.png").expect("couldn't read png");
+    let args: Vec<String> = std::env::args().collect();
+
+    let filepath = args.get(1).expect("No file path provided");
+
+    let bytes = fs::read(filepath).expect("File not found");
     assert_eq!(
         bytes[..8],
         vec![137, 80, 78, 71, 13, 10, 26, 10],

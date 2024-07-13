@@ -194,6 +194,7 @@ impl From<Chunk> for PNGHeader {
                 .unwrap(),
         );
 
+        // FIXME: Drain can probably be omitted
         let bit_depth: u8 = value.data.drain(..1).nth(0).unwrap();
         let color_type: u8 = value.data.drain(..1).nth(0).unwrap();
         let compression_method: u8 = value.data.drain(..1).nth(0).unwrap();
