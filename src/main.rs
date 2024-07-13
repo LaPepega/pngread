@@ -4,6 +4,7 @@ use pixel_canvas::Color;
 use png::PNG;
 use std::fs;
 
+// TODO: Terminal flags
 fn main() {
     let bytes = fs::read("/home/lapepega/Downloads/rgb.png").expect("couldn't read png");
     assert_eq!(

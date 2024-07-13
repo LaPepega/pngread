@@ -1,4 +1,4 @@
-use std::default;
+// TODO: At least *some* error handling
 
 #[derive(Debug, Clone)]
 pub struct Chunk {
